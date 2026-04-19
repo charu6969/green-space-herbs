@@ -3,11 +3,13 @@ import { createOrbitalRings, updateRings } from './rings.js';
 import { getSoftParticleSprite } from '../utils/pointSprite.js';
 
 // ---------------------------------------------------------------------------
-// Smooth lotus petal geometry — curved, elegant, tapered tip
+// Crystal petal geometry — wide, curved leaf with faceted crystal surface
+// Low segment count + flatShading = crystal facets on a smooth lotus shape
 // ---------------------------------------------------------------------------
 function createPetalGeometry(width, height) {
-  const segX = 12;
-  const segY = 20;
+  // Low segment count creates visible flat faces = crystal look
+  const segX = 4;
+  const segY = 6;
   const geo = new THREE.PlaneGeometry(width, height, segX, segY);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
@@ -15,23 +17,22 @@ function createPetalGeometry(width, height) {
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
 
-    // Normalize coords: u = -0.5..0.5, t = 0 (base) to 1 (tip)
-    const u = v.x / width;
-    const t = (v.y / height) + 0.5;
+    const u = v.x / width;           // -0.5 to 0.5
+    const t = (v.y / height) + 0.5;  // 0 (base) to 1 (tip)
 
-    // Smooth pointed taper — narrows gently toward tip
-    const taper = Math.pow(1.0 - t, 0.4) * (1.0 - Math.pow(t, 3.5));
-    v.x *= Math.max(taper * 2.2, 0.005);
+    // Taper: wide at base, pointed at tip — lotus leaf shape
+    const taper = Math.pow(1.0 - t, 0.35) * (1.0 - Math.pow(t, 2.5));
+    v.x *= Math.max(taper * 2.5, 0.01);
 
     // Shift base to y=0
     v.y = t * height;
 
-    // Curvature — petal curves back naturally
-    const curlBack = Math.pow(t, 2.0) * 0.35;
-    const bowlCurve = (1.0 - Math.abs(u * 2)) * 0.12 * Math.sin(t * Math.PI * 0.9);
-    
-    // Central ridge
-    const ridge = Math.pow(1.0 - Math.abs(u * 2), 3) * 0.06 * Math.sin(t * Math.PI * 0.8);
+    // Gentle curvature — petal cups inward then curls back at tip
+    const curlBack = Math.pow(t, 1.8) * 0.25;
+    const bowlCurve = (1.0 - Math.abs(u * 2)) * 0.15 * Math.sin(t * Math.PI * 0.85);
+
+    // Central ridge for thickness/crystal feel
+    const ridge = Math.pow(1.0 - Math.abs(u * 2), 2) * 0.08 * Math.sin(t * Math.PI * 0.7);
 
     v.z = -curlBack + bowlCurve + ridge;
 
@@ -43,32 +44,27 @@ function createPetalGeometry(width, height) {
 }
 
 // ---------------------------------------------------------------------------
-// Petal material — glowing translucent green crystal-glass
+// Crystal material — faceted, reflective green crystal
 // ---------------------------------------------------------------------------
-function createPetalMaterial({ color, emissive, emissiveIntensity = 0.4, opacity = 0.88 }) {
+function createPetalMaterial({ color, emissive, emissiveIntensity = 0.4, opacity = 0.92 }) {
   return new THREE.MeshPhysicalMaterial({
-    color,
-    emissive,
+    color: new THREE.Color(color),
+    emissive: new THREE.Color(emissive),
     emissiveIntensity,
     transparent: true,
     opacity,
-    roughness: 0.15,
-    metalness: 0.05,
-    transmission: 0.3,
-    thickness: 0.5,
-    ior: 1.45,
-    clearcoat: 0.8,
-    clearcoatRoughness: 0.1,
-    sheen: 0.6,
-    sheenColor: new THREE.Color(0x00ff88),
-    sheenRoughness: 0.2,
+    roughness: 0.12,
+    metalness: 0.15,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.08,
     side: THREE.DoubleSide,
-    envMapIntensity: 1.2,
+    flatShading: true,  // This is key — creates the crystal facet look
+    envMapIntensity: 1.3,
   });
 }
 
 // ---------------------------------------------------------------------------
-// Add a ring of petals to the lotus
+// Add a ring of petals — perfectly symmetrical, no random variation
 // ---------------------------------------------------------------------------
 function addPetalRing(group, petals, config) {
   const geo = createPetalGeometry(config.width, config.height);
@@ -78,7 +74,7 @@ function addPetalRing(group, petals, config) {
     const angle = (i / config.count) * Math.PI * 2 + (config.offset || 0);
     const petal = new THREE.Mesh(geo, mat);
 
-    // Position around the center
+    // Position around the center — perfectly symmetrical
     petal.position.set(
       Math.cos(angle) * config.radius,
       config.y,
@@ -91,7 +87,7 @@ function addPetalRing(group, petals, config) {
 
     // Store for animation
     petal.userData.baseRotX = petal.rotation.x;
-    petal.userData.baseRotZ = petal.rotation.z;
+    petal.userData.baseRotZ = 0;
     petal.userData.offset = angle + config.y * 3;
     petal.userData.breathAmp = config.breathAmp || 0.012;
 
@@ -110,7 +106,7 @@ function createCore() {
   const core = new THREE.Mesh(
     new THREE.SphereGeometry(0.1, 32, 32),
     new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
+      color: 0xaaffcc,
       transparent: true,
       opacity: 0.95,
     })
@@ -121,7 +117,7 @@ function createCore() {
   g.add(new THREE.Mesh(
     new THREE.SphereGeometry(0.2, 24, 24),
     new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
+      color: 0x66ff88,
       transparent: true,
       opacity: 0.35,
       blending: THREE.AdditiveBlending,
@@ -142,7 +138,7 @@ function createCore() {
   ));
 
   // Point light
-  const light = new THREE.PointLight(0x00ff88, 4, 5);
+  const light = new THREE.PointLight(0x88ff66, 5, 5);
   g.add(light);
 
   g.position.y = 0.35;
@@ -150,81 +146,117 @@ function createCore() {
 }
 
 // ---------------------------------------------------------------------------
-// CREATE LOTUS
+// CREATE LOTUS — dense, symmetrical crystal lotus matching reference
 // ---------------------------------------------------------------------------
 export function createLotus() {
   const group = new THREE.Group();
   const petals = [];
 
-  // Ring 1 — outermost, fully opened petals (deep green)
+  // ===== Ring 1 — Outermost sepals, wide open (dark green) =====
   addPetalRing(group, petals, {
-    count: 8,
-    radius: 0.48,
-    width: 0.5,
-    height: 1.1,
+    count: 10,
+    radius: 0.50,
+    width: 0.58,
+    height: 0.95,
     y: 0.0,
-    tilt: 1.2,           // wide open
+    tilt: 1.25,       // wide open, nearly horizontal
     offset: 0.0,
     breathAmp: 0.015,
     material: {
-      color: 0x0a5c2a,
-      emissive: 0x00ff88,
-      emissiveIntensity: 0.25,
-      opacity: 0.85,
+      color: 0x042a12,
+      emissive: 0x001a08,
+      emissiveIntensity: 0.4,
+      opacity: 0.95,
     },
   });
 
-  // Ring 2 — mid petals, slightly more upright (medium green)
+  // ===== Ring 2 — Outer petals, angled out (dark-mid green) =====
+  addPetalRing(group, petals, {
+    count: 9,
+    radius: 0.42,
+    width: 0.54,
+    height: 1.0,
+    y: 0.04,
+    tilt: 1.05,
+    offset: Math.PI / 9,
+    breathAmp: 0.014,
+    material: {
+      color: 0x063d1a,
+      emissive: 0x0a2a10,
+      emissiveIntensity: 0.45,
+      opacity: 0.95,
+    },
+  });
+
+  // ===== Ring 3 — Mid-outer petals (medium green) =====
   addPetalRing(group, petals, {
     count: 8,
-    radius: 0.36,
-    width: 0.44,
-    height: 1.0,
-    y: 0.06,
-    tilt: 0.9,
-    offset: Math.PI / 8,
+    radius: 0.34,
+    width: 0.50,
+    height: 1.05,
+    y: 0.08,
+    tilt: 0.82,
+    offset: Math.PI / 16,
     breathAmp: 0.013,
     material: {
-      color: 0x0f8040,
-      emissive: 0x00ff88,
-      emissiveIntensity: 0.35,
-      opacity: 0.88,
+      color: 0x0d5528,
+      emissive: 0x1a4422,
+      emissiveIntensity: 0.5,
+      opacity: 0.93,
     },
   });
 
-  // Ring 3 — inner petals, cupping inward (bright green)
+  // ===== Ring 4 — Mid petals, more upright (bright-mid green) =====
   addPetalRing(group, petals, {
-    count: 7,
-    radius: 0.24,
-    width: 0.38,
-    height: 0.85,
+    count: 8,
+    radius: 0.26,
+    width: 0.46,
+    height: 1.1,
     y: 0.12,
     tilt: 0.6,
-    offset: 0.22,
-    breathAmp: 0.01,
+    offset: Math.PI / 8,
+    breathAmp: 0.012,
     material: {
-      color: 0x15a050,
-      emissive: 0x00ff88,
-      emissiveIntensity: 0.5,
-      opacity: 0.9,
+      color: 0x158040,
+      emissive: 0x226633,
+      emissiveIntensity: 0.6,
+      opacity: 0.92,
     },
   });
 
-  // Ring 4 — innermost small petals, nearly upright (neon)
+  // ===== Ring 5 — Inner petals, mostly upright (bright green) =====
   addPetalRing(group, petals, {
-    count: 5,
-    radius: 0.13,
-    width: 0.28,
-    height: 0.65,
-    y: 0.2,
-    tilt: 0.35,
-    offset: 0.4,
-    breathAmp: 0.008,
+    count: 7,
+    radius: 0.18,
+    width: 0.40,
+    height: 1.0,
+    y: 0.16,
+    tilt: 0.4,
+    offset: 0.25,
+    breathAmp: 0.01,
     material: {
-      color: 0x22c55e,
-      emissive: 0x00ff88,
+      color: 0x22aa55,
+      emissive: 0x44cc33,
       emissiveIntensity: 0.7,
       opacity: 0.92,
+    },
+  });
+
+  // ===== Ring 6 — Core petals, tight and vertical (vivid green) =====
+  addPetalRing(group, petals, {
+    count: 5,
+    radius: 0.08,
+    width: 0.32,
+    height: 0.85,
+    y: 0.22,
+    tilt: 0.2,
+    offset: Math.PI / 5,
+    breathAmp: 0.008,
+    material: {
+      color: 0x33cc55,
+      emissive: 0x66ff44,
+      emissiveIntensity: 0.9,
+      opacity: 0.95,
     },
   });
 
@@ -234,17 +266,22 @@ export function createLotus() {
   group.userData.energyCore = energyCore;
 
   // Lotus lighting
-  const topLight = new THREE.PointLight(0x00ff88, 3, 7);
+  const topLight = new THREE.PointLight(0x88ff55, 4, 7);
   topLight.position.set(0, 2, 0.5);
   group.add(topLight);
 
-  const rimLight = new THREE.PointLight(0x22c55e, 1.5, 5);
+  const rimLight = new THREE.PointLight(0x22c55e, 2, 5);
   rimLight.position.set(0.5, 0.5, 0.7);
   group.add(rimLight);
 
-  const fillLight = new THREE.PointLight(0x00ff66, 1.2, 4);
+  const fillLight = new THREE.PointLight(0x00ff66, 1.5, 4);
   fillLight.position.set(-0.5, 0.3, 0.4);
   group.add(fillLight);
+
+  // Bottom light to illuminate the underside of outer petals
+  const upLight = new THREE.PointLight(0x00ff88, 1.2, 3);
+  upLight.position.set(0, -0.5, 0);
+  group.add(upLight);
 
   // Orbital ring
   const rings = createOrbitalRings(1, 1.5, 0x00ff88);
